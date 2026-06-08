@@ -5,23 +5,53 @@ on:
     branches: ["**"]
   pull_request:
   workflow_dispatch:
+    inputs:
+      release:
+        description: 'Create a release with the XPI?'
+        required: false
+        default: 'false'
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
-      - name: Checkout
+      - name: Checkout fork
         uses: actions/checkout@v4
         with:
+          path: fork
+          sparse-checkout: |
+            apply_patches.py
+            .github
+
+      - name: Checkout upstream uBlock
+        uses: actions/checkout@v4
+        with:
+          repository: gorhill/uBlock
           submodules: recursive
+          path: ublock
+
+      - name: Apply patches
+        run: python3 fork/apply_patches.py
+        working-directory: ublock
 
       - name: Build Firefox XPI
         run: make firefox
+        working-directory: ublock
 
-      - name: Upload XPI artifact
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: uBlock0-fork-firefox
-          path: dist/build/uBlock0.firefox.xpi
+          path: ublock/dist/build/uBlock0.firefox.xpi
           if-no-files-found: error
+
+      - name: Release raw XPI
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.release == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: Build ${{ github.run_number }}
+          files: ublock/dist/build/uBlock0.firefox.xpi
