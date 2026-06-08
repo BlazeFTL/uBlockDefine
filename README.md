@@ -9,6 +9,9 @@ The purpose of this fork is to use https://github.com/uBlockOrigin/uBlock-issues
 
 check release for Patched file for testing
 
+<img width="702" height="306" alt="Screenshot_20260608-171910_Spark Launcher_1" src="https://github.com/user-attachments/assets/55b63da6-cd56-47d6-805d-e50e86e0a692" />
+
+
 # uBlockDefine
 
 A fork of [uBlock Origin](https://github.com/gorhill/uBlock) that adds `!#define` macro support for domain list expansion in filter lists.
