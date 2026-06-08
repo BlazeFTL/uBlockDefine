@@ -22,9 +22,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           path: fork
-          sparse-checkout: |
-            apply_patches.py
-            .github
+          sparse-checkout: apply_patches.py
 
       - name: Checkout upstream uBlock
         uses: actions/checkout@v4
@@ -34,8 +32,7 @@ jobs:
           path: ublock
 
       - name: Apply patches
-        run: python3 fork/apply_patches.py
-        working-directory: ublock
+        run: python3 ${{ github.workspace }}/fork/apply_patches.py ${{ github.workspace }}/ublock
 
       - name: Build Firefox XPI
         run: make firefox
