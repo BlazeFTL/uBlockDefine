@@ -1,4 +1,4 @@
-import re, sys, pathlib
+import sys, pathlib
 
 ROOT = pathlib.Path(sys.argv[1]) if len(sys.argv) > 1 else pathlib.Path(__file__).parent
 
@@ -62,12 +62,13 @@ EXPAND_DEFINES = '''        static expandDefines(content) {
                 }
                 out.push(line);
             }
+            return out.join('\\n');
         }
 
-        static restructureHostnameList('''
+        static prune(content, env) {'''
 
 text = (ROOT / 'src/js/static-filtering-parser.js').read_text(encoding='utf-8')
-anchor = '        static restructureHostnameList('
+anchor = '        static prune(content, env) {'
 if anchor not in text:
     print(f"FAIL [expandDefines anchor]: '{anchor}' not found", file=sys.stderr)
     sys.exit(1)
@@ -116,11 +117,10 @@ DEFINE_CACHE_BLOCK = '''    // Auto-rename macro usages when !#define name is ed
 
     const onChanges = (cm, changes) => {'''
 
-ANCHOR_ONCHANGES = '    const onChanges = (cm, changes) => {'
-ANCHOR_CALL      = '        if ( changes.length === 0 ) { return; }\n        const doc = cm.getDoc();'
-NEW_CALL         = '        if ( changes.length === 0 ) { return; }\n        syncDefineRenames(cm, changes);\n        const doc = cm.getDoc();'
-ANCHOR_BEFORE    = "        cm.on('beforeChange', onBeforeChanges);"
-NEW_BEFORE       = """        cm.on('beforeChange', (cm, change) => {
+ANCHOR_CALL   = '        if ( changes.length === 0 ) { return; }\n        const doc = cm.getDoc();'
+NEW_CALL      = '        if ( changes.length === 0 ) { return; }\n        syncDefineRenames(cm, changes);\n        const doc = cm.getDoc();'
+ANCHOR_BEFORE = "        cm.on('beforeChange', onBeforeChanges);"
+NEW_BEFORE    = """        cm.on('beforeChange', (cm, change) => {
             const doc = cm.getDoc();
             const lineNo = change.from.line;
             const text = doc.getLine(lineNo) || '';
@@ -131,10 +131,11 @@ NEW_BEFORE       = """        cm.on('beforeChange', (cm, change) => {
 
 text = (ROOT / 'src/js/codemirror/ubo-static-filtering.js').read_text(encoding='utf-8')
 if 'syncDefineRenames' not in text:
-    if ANCHOR_ONCHANGES not in text:
-        print(f"FAIL [defineNameCache anchor]: '{ANCHOR_ONCHANGES}' not found", file=sys.stderr)
+    anchor = '    const onChanges = (cm, changes) => {'
+    if anchor not in text:
+        print(f"FAIL [defineNameCache anchor]: '{anchor}' not found", file=sys.stderr)
         sys.exit(1)
-    text = text.replace(ANCHOR_ONCHANGES, DEFINE_CACHE_BLOCK, 1)
+    text = text.replace(anchor, DEFINE_CACHE_BLOCK, 1)
     text = text.replace(ANCHOR_CALL, NEW_CALL, 1)
     text = text.replace(ANCHOR_BEFORE, NEW_BEFORE, 1)
     (ROOT / 'src/js/codemirror/ubo-static-filtering.js').write_text(text, encoding='utf-8')
