@@ -1,14 +1,14 @@
 import re, sys, pathlib
 
+ROOT = pathlib.Path(sys.argv[1]) if len(sys.argv) > 1 else pathlib.Path(__file__).parent
+
 def replace_exact(path, old, new, label):
-    text = pathlib.Path(path).read_text(encoding='utf-8')
+    text = path.read_text(encoding='utf-8')
     if old not in text:
         print(f"FAIL [{label}]: target string not found in {path}", file=sys.stderr)
         sys.exit(1)
-    pathlib.Path(path).write_text(text.replace(old, new, 1), encoding='utf-8')
+    path.write_text(text.replace(old, new, 1), encoding='utf-8')
     print(f"OK   [{label}]")
-
-ROOT = pathlib.Path(__file__).parent
 
 # ── 1. Red directive ink ──────────────────────────────────────────────────────
 replace_exact(
@@ -27,8 +27,7 @@ replace_exact(
 )
 
 # ── 3. expandDefines static method ───────────────────────────────────────────
-EXPAND_DEFINES = '''
-        static expandDefines(content) {
+EXPAND_DEFINES = '''        static expandDefines(content) {
             const defines = new Map();
             const reDefine = /^!#define\\s+(\\S+)\\s+\\(([^)]+)\\)[^\\n\\r]*(?:[\\n\\r]+|$)/gm;
             const cleaned = content.replace(reDefine, (match, name, domains) => {
@@ -62,16 +61,19 @@ EXPAND_DEFINES = '''
                     }
                 }
                 out.push(line);
-            }'''
+            }
+        }
+
+        static restructureHostnameList('''
 
 text = (ROOT / 'src/js/static-filtering-parser.js').read_text(encoding='utf-8')
-anchor = 'static restructureHostnameList('
+anchor = '        static restructureHostnameList('
 if anchor not in text:
     print(f"FAIL [expandDefines anchor]: '{anchor}' not found", file=sys.stderr)
     sys.exit(1)
 if 'expandDefines' not in text:
-    text = text.replace(anchor, EXPAND_DEFINES.lstrip('\n') + '\n\n        ' + anchor, 1)
-    (ROOT / 'src/js/static-filtering-parser.js').write_text(text, encoding='utf-8')
+    (ROOT / 'src/js/static-filtering-parser.js').write_text(
+        text.replace(anchor, EXPAND_DEFINES, 1), encoding='utf-8')
     print("OK   [expandDefines method]")
 else:
     print("SKIP [expandDefines method]: already present")
@@ -112,7 +114,7 @@ DEFINE_CACHE_BLOCK = '''    // Auto-rename macro usages when !#define name is ed
         }
     };
 
-    '''
+    const onChanges = (cm, changes) => {'''
 
 ANCHOR_ONCHANGES = '    const onChanges = (cm, changes) => {'
 ANCHOR_CALL      = '        if ( changes.length === 0 ) { return; }\n        const doc = cm.getDoc();'
@@ -128,12 +130,11 @@ NEW_BEFORE       = """        cm.on('beforeChange', (cm, change) => {
         });"""
 
 text = (ROOT / 'src/js/codemirror/ubo-static-filtering.js').read_text(encoding='utf-8')
-
 if 'syncDefineRenames' not in text:
     if ANCHOR_ONCHANGES not in text:
         print(f"FAIL [defineNameCache anchor]: '{ANCHOR_ONCHANGES}' not found", file=sys.stderr)
         sys.exit(1)
-    text = text.replace(ANCHOR_ONCHANGES, DEFINE_CACHE_BLOCK + ANCHOR_ONCHANGES, 1)
+    text = text.replace(ANCHOR_ONCHANGES, DEFINE_CACHE_BLOCK, 1)
     text = text.replace(ANCHOR_CALL, NEW_CALL, 1)
     text = text.replace(ANCHOR_BEFORE, NEW_BEFORE, 1)
     (ROOT / 'src/js/codemirror/ubo-static-filtering.js').write_text(text, encoding='utf-8')
