@@ -143,4 +143,13 @@ if 'syncDefineRenames' not in text:
 else:
     print("SKIP [defineNameCache + syncDefineRenames]: already present")
 
+
+
+# ── 5. Wire expandDefines into prune() ───────────────────────────────────────
+replace_exact(
+    ROOT / 'src/js/static-filtering-parser.js',
+    '        static prune(content, env) {\n            const parts = this.splitter(content, env);',
+    '        static prune(content, env) {\n            content = this.expandDefines(content);\n            const parts = this.splitter(content, env);',
+    'prune calls expandDefines',
+)
 print("\nAll patches applied.")
