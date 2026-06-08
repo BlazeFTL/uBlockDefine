@@ -11,6 +11,14 @@ check release for Patched file for testing
 
 <img width="702" height="306" alt="Screenshot_20260608-171910_Spark Launcher_1" src="https://github.com/user-attachments/assets/55b63da6-cd56-47d6-805d-e50e86e0a692" />
 
+Element Picker - Add Current Domain To Define Lines Screenshot
+<details><summary>Details</summary>
+<p>
+
+<img width="702" height="1560" alt="Screenshot_20260608-211723_Spark Launcher" src="https://github.com/user-attachments/assets/ea420f8d-9a87-4f57-9f58-1be642097b3f" />
+
+</p>
+</details>
 
 # uBlockDefine
 
