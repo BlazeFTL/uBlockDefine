@@ -1,0 +1,56 @@
+name: Build uBlock Origin (Patched)
+
+on:
+  push:
+    branches: [master, main]
+    tags: ['v*']
+  pull_request:
+    branches: [master, main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Build Firefox XPI
+        run: python3 tools/make-firefox.py all
+
+      - name: Get version
+        id: version
+        run: |
+          VERSION=$(python3 -c "import json; m=json.load(open('dist/build/uBlock0.firefox/manifest.json')); print(m['version'])")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Rename artifact
+        run: |
+          mv dist/build/uBlock0.firefox.xpi dist/build/uBlock0_${{ steps.version.outputs.version }}_patched.xpi
+
+      - name: Upload XPI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: uBlock0-patched-firefox-${{ steps.version.outputs.version }}
+          path: dist/build/uBlock0_${{ steps.version.outputs.version }}_patched.xpi
+          retention-days: 30
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/build/uBlock0_${{ steps.version.outputs.version }}_patched.xpi
+          name: uBlock0 ${{ steps.version.outputs.version }} (Patched)
+          body: |
+            Patched build of uBlock Origin ${{ steps.version.outputs.version }}
+
+            ### Changes from upstream
+            - `css/themes/default.css` — directive syntax color set to red (`#cc0000`)
+            - `js/static-filtering-parser.js` — `!#define` preparse support + `expandDefines()`
+            - `js/codemirror/ubo-static-filtering.js` — auto-rename macro usages on `!#define` edit
