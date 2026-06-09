@@ -26,6 +26,8 @@ Element Picker - Add Current Domain To Define Lines Screenshot
 
 A fork of [uBlock Origin](https://github.com/gorhill/uBlock) that adds `!#define` macro support for domain list expansion in filter lists.
 
+In 2018 this was a convenience request. In 2024–25 it's a countermeasure. Link shortner, file hosting, video hosting sites now buy 1-2 domains per day specifically to outpace static filter updates. The only sustainable response is a domain group you update in one place. Maintaining 20+ filter lines each repeating a 10-domain prefix — where that list changes daily — is not a viable workflow.
+
 ---
 
 ## What's Different
