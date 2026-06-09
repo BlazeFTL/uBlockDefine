@@ -7,7 +7,7 @@ uBlockDefine
 
 The purpose of this fork is to use https://github.com/uBlockOrigin/uBlock-issues/issues/330#issuecomment-2110930423
 
-check release for Patched file for testing
+Check release for patched file
 
 <img width="702" height="306" alt="Screenshot_20260608-171910_Spark Launcher_1" src="https://github.com/user-attachments/assets/55b63da6-cd56-47d6-805d-e50e86e0a692" />
 
@@ -19,6 +19,8 @@ Element Picker - Add Current Domain To Define Lines Screenshot
 
 </p>
 </details>
+
+---
 
 # uBlockDefine
 
