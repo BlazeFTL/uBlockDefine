@@ -12,7 +12,6 @@ check release for Patched file for testing
 <img width="702" height="306" alt="Screenshot_20260608-171910_Spark Launcher_1" src="https://github.com/user-attachments/assets/55b63da6-cd56-47d6-805d-e50e86e0a692" />
 
 Element Picker - Add Current Domain To Define Lines Screenshot
-(Currently The Patch Doesn't Support Adding Element Picker Modifications)
 <details><summary>Details</summary>
 <p>
 
