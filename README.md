@@ -80,12 +80,10 @@ The element picker toolbar includes a search box for your `!#define` lists. Type
 - Wildcards like `gplinks.*` are supported
 - Nest macros inside other macro values
 
-
+Nest Macro Example:
 ```adblock
 !#define Gplinks (gplinks.*,get2.in)
 !#define GplinksAll (powergam.online,qrixpe.com,Gplinks)
-
-
 GplinksAll##.ad-banner
 ```
 
