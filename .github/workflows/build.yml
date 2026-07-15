@@ -1,0 +1,88 @@
+name: Build uBlock Define Fork For Mozilla
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      release:
+        description: 'Create a release with the XPI?'
+        required: false
+        default: 'false'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout fork
+        uses: actions/checkout@v4
+        with:
+          path: fork
+          sparse-checkout: apply_patches.py
+
+      - name: Checkout upstream uBlock
+        uses: actions/checkout@v4
+        with:
+          repository: gorhill/uBlock
+          submodules: recursive
+          path: ublock
+
+      - name: Apply patches
+        run: python3 ${{ github.workspace }}/fork/apply_patches.py ${{ github.workspace }}/ublock
+
+      - name: Set custom gecko ID
+        run: |
+          python3 - <<'EOF'
+          import json, pathlib
+          p = pathlib.Path("ublock/platform/firefox/manifest.json")
+          m = json.loads(p.read_text())
+          m.setdefault("browser_specific_settings", {}).setdefault("gecko", {})["id"] = "uBlockDefine@BlazeFTL"
+          p.write_text(json.dumps(m, indent=2))
+          EOF
+
+      - name: Build Firefox XPI
+        run: make firefox
+        working-directory: ublock
+
+      - name: Get uBlock version
+        id: ublock_version
+        run: |
+          VERSION=$(cat ublock/dist/version)
+          FNAME="uBlockOrigin Define V${VERSION} Fork Unsigned For Mozilla.xpi"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "filename=$FNAME" >> $GITHUB_OUTPUT
+          mv ublock/dist/build/uBlock0.firefox.xpi "ublock/dist/build/$FNAME"
+          mv ublock/dist/build/uBlock0.firefox "ublock/dist/build/$FNAME.unpacked"
+
+      - name: Sign XPI
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.release == 'true'
+        run: |
+          npm install -g web-ext
+          mkdir -p /tmp/xpi_src /tmp/signed
+          unzip "ublock/dist/build/${{ steps.ublock_version.outputs.filename }}" -d /tmp/xpi_src
+          web-ext sign \
+            --channel=unlisted \
+            --api-key=${{ secrets.AMO_JWT_ISSUER }} \
+            --api-secret=${{ secrets.AMO_JWT_SECRET }} \
+            --source-dir=/tmp/xpi_src \
+            --artifacts-dir=/tmp/signed
+          cp /tmp/signed/*.xpi "ublock/dist/build/${{ steps.ublock_version.outputs.filename }}"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: "uBlockOrigin Define V${{ steps.ublock_version.outputs.version }} Fork Unsigned For Mozilla"
+          path: "ublock/dist/build/${{ steps.ublock_version.outputs.filename }}.unpacked"
+          if-no-files-found: error
+
+      - name: Release raw XPI
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.release == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.ublock_version.outputs.version }}_define_${{ github.run_number }}
+          name: ${{ steps.ublock_version.outputs.version }} Define_${{ github.run_number }}
+          files: "ublock/dist/build/${{ steps.ublock_version.outputs.filename }}"
