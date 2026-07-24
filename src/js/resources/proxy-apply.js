@@ -26,7 +26,8 @@ import { registerScriptlet } from './base.js';
 
 export function proxyApplyFn(
     target = '',
-    handler = ''
+    handler = '',
+    options = {}
 ) {
     let context = globalThis;
     let prop = target;
@@ -87,7 +88,7 @@ export function proxyApplyFn(
         };
         proxyApplyFn.isCtor = new Map();
         proxyApplyFn.proxies = new WeakMap();
-        if ( proxyApplyFn.skipToString !== true ) {
+        if ( (options.skipToString || proxyApplyFn.skipToString) !== true ) {
             proxyApplyFn.nativeToString = Function.prototype.toString;
             const proxiedToString = new Proxy(Function.prototype.toString, {
                 apply(target, thisArg) {
@@ -128,15 +129,15 @@ registerScriptlet(proxyApplyFn, {
 /******************************************************************************/
 
 export function proxyApplyConfig(config = '') {
-    try { config = JSON.parse(config); }
-    catch { }
-    if ( typeof config !== 'object' ) { return; }
-    Object.assign(proxyApplyFn, config);
+    try {
+        if ( typeof proxyApplyFn !== 'function' ) { return; }
+        config = JSON.parse(config);
+        if ( typeof config !== 'object' ) { return; }
+        Object.assign(proxyApplyFn, config);
+    } catch {
+    }
 }
 registerScriptlet(proxyApplyConfig , {
     name: 'proxy-apply-config.js',
-    dependencies: [
-        proxyApplyFn,
-    ],
     priority: 100,
 });
