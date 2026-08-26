@@ -1,3 +1,6 @@
+- [Fix possible injection of scriptlets requiring trust from non-trusted sources](https://github.com/gorhill/uBlock/commit/a46d5c8e75)
+- [Import `google-ima-dai` shim from AdGuard shims](https://github.com/gorhill/uBlock/commit/933efff4dd)
+- [Replace List-KR with filterslists-KO](https://github.com/gorhill/uBlock/commit/20d3c5b9d0)
 - [Remove support for `cap_user_stylesheet`](https://github.com/gorhill/uBlock/commit/fb09b0947d)
 - [Improve scriptlets framework](https://github.com/gorhill/uBlock/commit/57ade5f484)
 - [Add `env_brave` preparser token](https://github.com/gorhill/uBlock/commit/0c56103a40) (by @ryanbr)
