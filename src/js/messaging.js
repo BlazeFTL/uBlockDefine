@@ -42,6 +42,7 @@ import cacheStorage from './cachestorage.js';
 import cosmeticFilteringEngine from './cosmetic-filtering.js';
 import { denseBase64 } from './base64-custom.js';
 import { filteringBehaviorChanged } from './broadcast.js';
+import { getTrustedTokens } from './trusted-tokens.js';
 import htmlFilteringEngine from './html-filtering.js';
 import { i18n$ } from './i18n.js';
 import io from './assets.js';
@@ -155,7 +156,7 @@ const onMessage = function(request, sender, callback) {
 
     case 'getAppData':
         response = {
-            name: browser.runtime.getManifest().name,
+            name: self.browser.runtime.getManifest().name,
             version: vAPI.app.version,
             canBenchmark: µb.hiddenSettings.benchmarkDatasetURL !== 'unset',
         };
@@ -165,8 +166,8 @@ const onMessage = function(request, sender, callback) {
         response = getDomainNames(request.targets);
         break;
 
-    case 'getTrustedScriptletTokens':
-        response = redirectEngine.getTrustedScriptletTokens();
+    case 'getTrustedTokens':
+        response = Array.from(getTrustedTokens());
         break;
 
     case 'getWhitelist':
@@ -1032,7 +1033,7 @@ const backupUserData = async function() {
         dynamicFilteringString: permanentFirewall.toString(),
         urlFilteringString: permanentURLFiltering.toString(),
         hostnameSwitchesString: permanentSwitches.toString(),
-        userFilters: userFilters.content,
+        userFilters: userFilters.content.split('\n'),
     };
 
     const filename = i18n$('aboutBackupFilename')
@@ -1120,7 +1121,10 @@ const restoreUserData = async function(request) {
         lastBackupFile: '',
         lastBackupTime: 0
     });
-    µb.saveUserFilters(userData.userFilters);
+    const userFilters = Array.isArray(userData.userFilters)
+        ? userData.userFilters.join('\n')
+        : userData.userFilters;
+    µb.saveUserFilters(userFilters);
     if ( Array.isArray(userData.selectedFilterLists) ) {
         await µb.saveSelectedFilterLists(userData.selectedFilterLists);
     }
