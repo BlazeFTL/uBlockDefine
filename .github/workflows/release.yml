@@ -1,0 +1,97 @@
+name: Release XPI
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+env:
+  GH_TOKEN: ${{ github.token }}
+  ADDON_ID: ${{ vars.ADDON_ID }}
+  XPI_NAME: uBlockDefine.firefox.xpi
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Check version
+        id: v
+        run: |
+          V=$(tr -d '[:space:]' < dist/version)
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          if gh release view "v$V" >/dev/null 2>&1; then
+            echo "Release v$V exists, skipping."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Apply patches
+        if: steps.v.outputs.skip != 'true'
+        run: python3 apply_patches.py .
+
+      - name: Set update_url
+        if: steps.v.outputs.skip != 'true'
+        run: |
+          python3 - <<'PY'
+          import json, os
+          p = 'platform/firefox/manifest.json'
+          m = json.load(open(p, encoding='utf-8'))
+          g = m['browser_specific_settings']['gecko']
+          if os.environ.get('ADDON_ID'):
+              g['id'] = os.environ['ADDON_ID']
+          g['update_url'] = f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/releases/download/updates/updates.json"
+          with open(p, 'w', encoding='utf-8') as f:
+              json.dump(m, f, indent=2, ensure_ascii=False)
+              f.write('\n')
+          PY
+
+      - name: Build Firefox XPI
+        if: steps.v.outputs.skip != 'true'
+        run: |
+          make firefox
+          cp dist/build/uBlock0.firefox.xpi "$XPI_NAME"
+
+      - name: Write update manifest
+        if: steps.v.outputs.skip != 'true'
+        env:
+          V: ${{ steps.v.outputs.version }}
+        run: |
+          python3 - <<'PY'
+          import json, os, zipfile
+          v, repo = os.environ['V'], os.environ['GITHUB_REPOSITORY']
+          with zipfile.ZipFile(os.environ['XPI_NAME']) as z:
+              addon_id = json.loads(z.read('manifest.json'))['browser_specific_settings']['gecko']['id']
+          data = {"addons": {addon_id: {"updates": [{
+              "version": v,
+              "browser_specific_settings": {"gecko": {"strict_min_version": "115.0"}},
+              "update_link": f"https://github.com/{repo}/releases/download/v{v}/{os.environ['XPI_NAME']}"
+          }]}}}
+          with open('updates.json', 'w') as f:
+              json.dump(data, f, indent=2)
+              f.write('\n')
+          PY
+
+      - name: Publish
+        if: steps.v.outputs.skip != 'true'
+        env:
+          V: ${{ steps.v.outputs.version }}
+        run: |
+          set -euo pipefail
+          gh release create "v$V" "$XPI_NAME" \
+            --target "$GITHUB_SHA" \
+            --title "$V" \
+            --notes "uBlock Origin $V + define patches. Unsigned."
+          gh release view updates >/dev/null 2>&1 || gh release create updates \
+            --prerelease \
+            --target "$GITHUB_SHA" \
+            --title "Update manifest" \
+            --notes "Auto-managed by release.yml. Do not delete."
+          gh release upload updates updates.json --clobber

@@ -1,0 +1,70 @@
+name: Sync upstream
+
+on:
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: sync-upstream
+  cancel-in-progress: false
+
+env:
+  UPSTREAM_REPO: https://github.com/gorhill/uBlock.git
+  UPSTREAM_BRANCH: master
+  BRANCH: master
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.BRANCH }}
+          fetch-depth: 0
+          token: ${{ secrets.SYNC_PAT || github.token }}
+
+      - name: Merge upstream
+        run: |
+          set -euo pipefail
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config merge.ours.driver true
+
+          git remote add upstream "$UPSTREAM_REPO"
+          git fetch --no-tags upstream "$UPSTREAM_BRANCH"
+
+          BEHIND=$(git rev-list --count "HEAD..upstream/$UPSTREAM_BRANCH")
+          if [ "$BEHIND" = "0" ]; then
+            echo "Already up to date."
+            exit 0
+          fi
+          echo "Behind upstream by $BEHIND commits."
+
+          git merge --no-ff --no-commit "upstream/$UPSTREAM_BRANCH" || true
+          git rev-parse -q --verify MERGE_HEAD >/dev/null || { echo "::error::merge did not start"; exit 1; }
+
+          # Fork-owned paths: always keep ours (README conflicts, workflow files).
+          git checkout HEAD -- README.md
+          git rm -rqf --ignore-unmatch .github/workflows
+          git checkout HEAD -- .github/workflows
+
+          UNMERGED=$(git diff --name-only --diff-filter=U)
+          if [ -n "$UNMERGED" ]; then
+            echo "::error::Unresolved conflicts:"
+            echo "$UNMERGED"
+            git merge --abort
+            exit 1
+          fi
+
+          git commit -q -m "Sync upstream gorhill/uBlock@$(git rev-parse --short "upstream/$UPSTREAM_BRANCH")"
+          git push origin "HEAD:$BRANCH"
+
+      - name: Trigger release build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run release.yml --ref "$BRANCH"
