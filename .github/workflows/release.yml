@@ -37,6 +37,10 @@ jobs:
         if: steps.v.outputs.skip != 'true'
         run: python3 apply_patches.py .
 
+      - name: Apply CodeMirror mobile input patches
+        if: steps.v.outputs.skip != 'true'
+        run: python3 patch.py .
+
       - name: Set update_url
         if: steps.v.outputs.skip != 'true'
         run: |
