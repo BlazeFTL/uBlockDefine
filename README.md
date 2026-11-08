@@ -5,9 +5,11 @@
 uBlockDefine
 </h1>
 
-The purpose of this fork is to use https://github.com/uBlockOrigin/uBlock-issues/issues/330#issuecomment-2110930423
+A fork of [uBlock Origin](https://github.com/gorhill/uBlock) that adds `!#define` macro support for domain list expansion in filter lists.
 
-Check release for patched file
+The purpose of this fork is to implement [uBlock-issues#330](https://github.com/uBlockOrigin/uBlock-issues/issues/330#issuecomment-2110930423).
+
+In 2018 this was a convenience request. In 2024–25 it's a countermeasure. Link shortener, file hosting and video hosting sites now buy 1–2 domains per day specifically to outpace static filter updates. The only sustainable response is a domain group you update in one place. Maintaining 20+ filter lines that each repeat a 10-domain prefix, where that list changes daily, is not a viable workflow.
 
 <img width="702" height="306" alt="Screenshot_20260608-171910_Spark Launcher_1" src="https://github.com/user-attachments/assets/55b63da6-cd56-47d6-805d-e50e86e0a692" />
 
@@ -22,22 +24,37 @@ Element Picker - Add Current Domain To Define Lines Screenshot
 
 ---
 
-# uBlockDefine
+## Features
 
-A fork of [uBlock Origin](https://github.com/gorhill/uBlock) that adds `!#define` macro support for domain list expansion in filter lists.
-
-In 2018 this was a convenience request. In 2024–25 it's a countermeasure. Link shortner, file hosting, video hosting sites now buy 1-2 domains per day specifically to outpace static filter updates. The only sustainable response is a domain group you update in one place. Maintaining 20+ filter lines each repeating a 10-domain prefix — where that list changes daily — is not a viable workflow.
+- `!#define` domain macros, expanded at parse time
+- Nested macros, with circular-reference protection
+- Negation with `~Macro`
+- Macros usable in cosmetic filters, network filters and filter options
+- Red directive highlighting in the filter editor
+- Auto-rename of macro usages when a `!#define` name is edited
+- Define search panel in the element picker, with one-tap **Add Current**
+- Mobile (Gboard) fixes for select-all, copy and cut in the filter editor
+- Auto-updating Firefox releases
+- Daily upstream sync
 
 ---
 
-## What's Different
+## Syntax
 
+```adblock
+!#define MacroName (domain1.com,domain2.com,domain3.*)
+```
 
-### `!#define` Domain Macros
+- The macro name can be anything without spaces.
+- Domains are comma-separated inside `( )`.
+- The definition must be on one line and must not contain `)` inside the list.
+- Text after the closing `)` is ignored, so it can hold a note.
+- Wildcards like `gplinks.*` are supported.
+- The `!#define` line is removed from the list at parse time.
+- A macro applies only inside the list that defines it.
+- Names match whole tokens only. A macro named like a real domain replaces that domain wherever it appears in the list.
 
-
-Define a named group of domains once, use it everywhere:
-
+### Example
 
 ```adblock
 !#define GplinksPartners.com (powergam.online,qrixpe.com,sanadegreecollege.in)
@@ -46,78 +63,108 @@ GplinksPartners.com##+js(set, document.hidden, false)
 *$script,1p,domain=GplinksPartners.com
 ```
 
+At parse time `GplinksPartners.com` expands into all three domains, so each rule is written once.
 
-At parse time, `GplinksPartners.com` expands into all three domains — so you write the rule once instead of repeating it for every domain.
+### Where macros expand
 
+| Position | Result |
+|---|---|
+| Before `##`, `#@#`, `#?#`, `#$#`, `#%#` | Joined with `,` in the same line |
+| `domain=`, `from=`, `to=`, `denyallow=` option values | Joined with `\|` in the same line |
+| Start of a network filter | One line per domain |
 
-### Red Directive Highlighting
+Comment lines (`!`) are never expanded.
 
+### Negation
 
-`!#define`, `!#if`, `!#include` and other directives are highlighted in **red** in the filter editor for visibility.
-
-
-### Auto-Rename Macro Usages
-
-
-When you edit a `!#define` name in the filter editor, all usages of that macro in the list are renamed automatically.
-
-
-### Define Search Panel
-
-
-The element picker toolbar includes a search box for your `!#define` lists. Type a macro name to filter matches, then tap **Add Current** to append the current page's domain to that macro and close the picker — without ever opening the filter editor.
-
-
----
-
-
-## Syntax
-
+Prefix a macro with `~` inside a domain list or option to negate every domain in it:
 
 ```adblock
-!#define MacroName (domain1.com,domain2.com,domain3.*)
+*$script,domain=~GplinksPartners.com
 ```
 
+### Nested macros
 
-- The macro name can be anything without spaces
-- Domains are comma-separated inside `( )`
-- Wildcards like `gplinks.*` are supported
-- Nest macros inside other macro values
-
-Nest Macro Example:
 ```adblock
 !#define Gplinks (gplinks.*,get2.in)
 !#define GplinksAll (powergam.online,qrixpe.com,Gplinks)
 GplinksAll##.ad-banner
 ```
 
+Duplicates are removed. A macro that references itself, directly or through another macro, resolves to nothing for the looping part. An empty macro is not expanded.
 
 ---
 
+## Editor
+
+### Red directive highlighting
+
+`!#define`, `!#if`, `!#else`, `!#endif` and `!#include` are highlighted in red in the filter editor (`#cc0000` light, `#ff6b6b` dark).
+
+### Auto-rename
+
+When you edit the name on a `!#define` line, all usages of that macro in the same list are renamed automatically. Undo and redo do not trigger a rename.
+
+### Mobile input fixes
+
+On Android, Gboard reads select-all, copy and cut from the editor DOM text. Stock CodeMirror 5 put line numbers and extra blank lines into that text. This fork:
+
+- Renders line numbers and lint messages as CSS generated content instead of text.
+- Uses inline elements for gutter helpers.
+- Renders the whole document for lists up to 5000 lines, so select-all covers everything and not only the visible part.
+
+Copied text is now exactly one line per filter line.
+
+---
+
+## Element Picker: Define Search
+
+The picker has a search box for the `!#define` lines in **My filters**.
+
+1. Type part of a macro name (case-insensitive).
+2. Tap **Add Current** on the match.
+3. The current page's hostname is appended to that macro, My filters is saved, all filters are reloaded and the picker closes.
+
+Button states: **Added** if the domain is already in the macro, **Not found** if the macro no longer exists. Punycode hostnames are converted to Unicode before being added.
+
+---
 
 ## Build
 
+### Artifact
 
-Builds are generated automatically via GitHub Actions on every push. Download the latest XPI from [Actions](../../actions) → most recent run → **uBlock0-fork-firefox** artifact. (Unsigned Builds)
+`build.yml` runs on every push and pull request. It checks out upstream `gorhill/uBlock`, applies `apply_patches.py` and `patch.py`, then runs `make firefox`. Download the result from [Actions](../../actions) → latest run → **uBlockOrigin Define V<version> Fork Unsigned**.
 
-For Signed Build Head On To Release Section
+### Release
 
-To create a named release with a direct `.xpi` download (no zip), trigger the workflow manually with **"Create a release"** set to `true`.
+Run the **Release XPI** workflow manually. It:
 
+- Builds `uBlockDefine.firefox.xpi` from this repo.
+- Creates release `v<version>`. If that release already exists, it is skipped.
+- Sets `update_url` in the manifest. Set the repository variable `ADDON_ID` to override the add-on ID.
+- Publishes `updates.json` to the `updates` release, so installed copies update themselves (Firefox 115+).
+
+For a signed build, head to the Release section.
+
+### Upstream sync
+
+`sync-upstream.yml` runs daily at 03:17 UTC. It merges `gorhill/uBlock` master into this repo, keeps this README and the fork's workflows, then triggers **Release XPI**.
 
 ---
-
 
 ## How Patching Works
 
+This fork does not maintain hand-edited copies of uBlock Origin's files. Two scripts apply string-based patches at build time:
 
-This fork does not maintain a modified copy of uBlock Origin's source. Instead, `apply_patches.py` at the repo root applies targeted string-based patches to a fresh checkout of `gorhill/uBlock` at build time. When gorhill updates upstream, the patches apply on top automatically. If an upstream change conflicts with a patch anchor, the build fails with a descriptive error.
+| Script | Patches |
+|---|---|
+| `apply_patches.py` | `!#define` parser and expansion, directive color, auto-rename, element picker search |
+| `patch.py` | CodeMirror mobile input fixes |
 
+Both scripts are idempotent: a patch already present is skipped. If an upstream change breaks a patch anchor (it must match exactly once), the build fails with a descriptive error. Touched JS files are syntax-checked with `node --check`.
 
 ---
 
-
 ## Based On
-
 
 [uBlock Origin](https://github.com/gorhill/uBlock) by Raymond Hill — GPLv3
