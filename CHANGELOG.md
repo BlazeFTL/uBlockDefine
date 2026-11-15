@@ -1,5 +1,14 @@
 ----------
 
+# 1.76.4
+
+- [[security] Address remaining reported security issues](https://github.com/gorhill/uBlock/commit/5466554104)
+- [[generic cosmetic filtering] Fix extraneous function argument](https://github.com/gorhill/uBlock/commit/e8efba123b)
+- [[filter parser] Non-leading tag names must be preceded by whitespace](https://github.com/gorhill/uBlock/commit/a63712e39c)
+- [[security] Removed no longer used warOrigin/warSecret](https://github.com/gorhill/uBlock/commit/73ef1b23f7)
+
+----------
+
 # 1.76.2
 
 - [[diff updater] Use canonical patch URL to prevent duplicate fetches](https://github.com/gorhill/uBlock/commit/736ef4d100)
