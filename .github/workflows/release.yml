@@ -2,6 +2,11 @@ name: Release XPI
 
 on:
   workflow_dispatch:
+    inputs:
+      force:
+        description: 'Rebuild and re-publish even if this version already has a release'
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -29,8 +34,13 @@ jobs:
           V=$(tr -d '[:space:]' < dist/version)
           echo "version=$V" >> "$GITHUB_OUTPUT"
           if gh release view "v$V" >/dev/null 2>&1; then
-            echo "Release v$V exists, skipping."
-            echo "skip=true" >> "$GITHUB_OUTPUT"
+            if [ "${{ inputs.force }}" = "true" ]; then
+              echo "Release v$V exists, force rebuild."
+              gh release delete "v$V" --cleanup-tag --yes
+            else
+              echo "Release v$V exists, skipping."
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+            fi
           fi
 
       - name: Apply patches
@@ -40,6 +50,10 @@ jobs:
       - name: Apply CodeMirror mobile input patches
         if: steps.v.outputs.skip != 'true'
         run: python3 patch.py .
+
+      - name: Apply My filters fold + About patches
+        if: steps.v.outputs.skip != 'true'
+        run: python3 patch2.py .
 
       - name: Set update_url
         if: steps.v.outputs.skip != 'true'
@@ -81,6 +95,8 @@ jobs:
           with open('updates.json', 'w') as f:
               json.dump(data, f, indent=2)
               f.write('\n')
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as f:
+              f.write(f"version `{v}`, add-on id `{addon_id}`\n")
           PY
 
       - name: Publish
