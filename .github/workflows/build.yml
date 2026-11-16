@@ -26,6 +26,7 @@ jobs:
           sparse-checkout: |
             apply_patches.py
             patch.py
+            patch2.py
 
       - name: Checkout upstream uBlock
         uses: actions/checkout@v4
@@ -40,6 +41,9 @@ jobs:
       - name: Apply CodeMirror mobile input patches
         run: python3 ${{ github.workspace }}/fork/patch.py ${{ github.workspace }}/ublock
 
+      - name: Apply My filters fold + About patches
+        run: python3 ${{ github.workspace }}/fork/patch2.py ${{ github.workspace }}/ublock
+
       - name: Build Firefox XPI
         run: make firefox
         working-directory: ublock
@@ -49,6 +53,7 @@ jobs:
         run: |
           VERSION=$(cat ublock/dist/version)
           echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "filename=uBlock0.firefox.xpi" >> $GITHUB_OUTPUT
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
