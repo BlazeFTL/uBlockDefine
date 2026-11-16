@@ -55,21 +55,9 @@ jobs:
         if: steps.v.outputs.skip != 'true'
         run: python3 patch2.py .
 
-      - name: Set update_url
+      - name: Set add-on id and update_url
         if: steps.v.outputs.skip != 'true'
-        run: |
-          python3 - <<'PY'
-          import json, os
-          p = 'platform/firefox/manifest.json'
-          m = json.load(open(p, encoding='utf-8'))
-          g = m['browser_specific_settings']['gecko']
-          if os.environ.get('ADDON_ID'):
-              g['id'] = os.environ['ADDON_ID']
-          g['update_url'] = f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/releases/download/updates/updates.json"
-          with open(p, 'w', encoding='utf-8') as f:
-              json.dump(m, f, indent=2, ensure_ascii=False)
-              f.write('\n')
-          PY
+        run: python3 set_update_url.py .
 
       - name: Build Firefox XPI
         if: steps.v.outputs.skip != 'true'
@@ -86,10 +74,13 @@ jobs:
           import json, os, zipfile
           v, repo = os.environ['V'], os.environ['GITHUB_REPOSITORY']
           with zipfile.ZipFile(os.environ['XPI_NAME']) as z:
-              addon_id = json.loads(z.read('manifest.json'))['browser_specific_settings']['gecko']['id']
+              gecko = json.loads(z.read('manifest.json'))['browser_specific_settings']['gecko']
+          addon_id = gecko['id']
+          if 'raymondhill' in addon_id or 'update_url' not in gecko:
+              raise SystemExit('XPI manifest has upstream id or no update_url')
           data = {"addons": {addon_id: {"updates": [{
               "version": v,
-              "browser_specific_settings": {"gecko": {"strict_min_version": "115.0"}},
+              "browser_specific_settings": {"gecko": {"strict_min_version": gecko.get("strict_min_version", "128.0")}},
               "update_link": f"https://github.com/{repo}/releases/download/v{v}/{os.environ['XPI_NAME']}"
           }]}}}
           with open('updates.json', 'w') as f:

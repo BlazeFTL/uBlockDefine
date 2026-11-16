@@ -27,6 +27,7 @@ jobs:
             apply_patches.py
             patch.py
             patch2.py
+            set_update_url.py
 
       - name: Checkout upstream uBlock
         uses: actions/checkout@v4
@@ -43,6 +44,11 @@ jobs:
 
       - name: Apply My filters fold + About patches
         run: python3 ${{ github.workspace }}/fork/patch2.py ${{ github.workspace }}/ublock
+
+      - name: Set add-on id and update_url
+        env:
+          ADDON_ID: ${{ vars.ADDON_ID }}
+        run: python3 ${{ github.workspace }}/fork/set_update_url.py ${{ github.workspace }}/ublock
 
       - name: Build Firefox XPI
         run: make firefox
