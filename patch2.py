@@ -123,6 +123,49 @@ const makeFoldWidget = (cm, from) => {
     return widget;
 };
 
+// Folded `!#if` block: the hosts found in the block's `! https://...`
+// comments are shown after `!#endif`, e.g. `!#endif(arolinks.com+vplink.com)`.
+// The text is generated CSS content (data-label), never a DOM text node.
+
+const reEndifLabelSkip = /^!\s*[<>]{8}\s/;
+
+const endifLabelFor = (cm, startLineNo, endLineNo) => {
+    const hosts = [];
+    for ( let lineNo = startLineNo + 1; lineNo < endLineNo; lineNo++ ) {
+        const text = cm.getLine(lineNo).trim();
+        if ( text.startsWith('!') === false ) { continue; }
+        if ( text.startsWith('!#') ) { continue; }
+        if ( reEndifLabelSkip.test(text) ) { continue; }
+        const match = reCollapseUrlHost.exec(text);
+        if ( match === null ) { continue; }
+        if ( hosts.includes(match[1]) ) { continue; }
+        hosts.push(match[1]);
+    }
+    return hosts.join('+');
+};
+
+const addEndifLabel = (cm, from, to) => {
+    if ( !from || !to || to.line <= from.line ) { return; }
+    if ( /^\s*!#if\b/.test(cm.getLine(from.line)) === false ) { return; }
+    const endText = cm.getLine(to.line);
+    if ( !endText ) { return; }
+    const label = endifLabelFor(cm, from.line, to.line);
+    if ( label === '' ) { return; }
+    let foldMark = null;
+    for ( const mark of cm.findMarksAt(from) ) {
+        if ( mark.__isFold !== true ) { continue; }
+        const range = mark.find();
+        if ( range && range.from.line === from.line ) { foldMark = mark; break; }
+    }
+    if ( foldMark === null ) { return; }
+    const labelMark = cm.markText(
+        CodeMirror.Pos(to.line, 0),
+        CodeMirror.Pos(to.line, endText.length),
+        { endStyle: 'ubo-endif-label', attributes: { 'data-label': `(${label})` } }
+    );
+    foldMark.on('clear', ( ) => { labelMark.clear(); });
+};
+
 """
 
 FOLD_HELPER_HEAD = "CodeMirror.registerHelper('fold', 'ubo-static-filtering', (( ) => {"
@@ -225,10 +268,11 @@ EVENTS_OLD = """        cm.on('fold', function(cm, from) {
 EVENTS_NEW = """        cm.setOption('foldOptions', {
             widget: from => makeFoldWidget(cm, from),
         });
-        cm.on('fold', function(cm, from) {
+        cm.on('fold', function(cm, from, to) {
             const lineHandle = cm.getDoc().getLineHandle(from.line);
             const marker = lineHandle ? extractMarker(lineHandle) : null;
             if ( marker !== null ) { dom.cl.add(marker, 'folded'); }
+            addEndifLabel(cm, from, to);
         });
         cm.on('unfold', function(cm, from) {
             const lineHandle = cm.getDoc().getLineHandle(from.line);
@@ -248,6 +292,44 @@ apply(
         (CLICK_OLD, CLICK_NEW),
         (EVENTS_OLD, EVENTS_NEW),
     ],
+)
+
+# ---------------------------------------------------------------------------
+# 3b. !#Collapse line drawn like other directives (red, bold); folded `!#if`
+#     blocks get a green `(host+host)` label after `!#endif`.
+# ---------------------------------------------------------------------------
+
+apply(
+    'collapse directive color',
+    STATIC_JS,
+    'reCollapseMacro.test(stream.string)',
+    [(
+        """            if ( stream.sol() ) {
+                state.astParser.parse(stream.string);
+""",
+        """            if ( stream.sol() ) {
+                state.astParser.parse(stream.string);
+                if ( reCollapseMacro.test(stream.string) ) {
+                    stream.skipToEnd();
+                    return 'directive';
+                }
+""",
+    )],
+)
+
+apply(
+    'endif label css',
+    'src/css/codemirror.css',
+    '.ubo-endif-label::after',
+    [],
+    append="""
+.CodeMirror .ubo-endif-label::after {
+    color: var(--cm-positive);
+    content: attr(data-label);
+    font-family: sans-serif;
+    font-weight: bold;
+    }
+""",
 )
 
 # ---------------------------------------------------------------------------
