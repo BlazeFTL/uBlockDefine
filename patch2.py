@@ -567,6 +567,84 @@ apply(
     ],
 )
 
+# ---------------------------------------------------------------------------
+# 5. Gboard cut / delete of selected lines: lines vanish, then come back.
+# ---------------------------------------------------------------------------
+# Why: when an IME removes or replaces a selection, Gecko edits the editable
+# DOM itself. For whole lines or several lines CodeMirror 5 cannot map that DOM
+# change back to the document (pollContent), falls back to redrawing from the
+# unchanged document and the lines return. Fix: apply such edits to the
+# document directly, then redraw from it. Cancelable `beforeinput` events are
+# handled before Gecko touches the DOM; composition based edits are handled at
+# `compositionend`.
+
+CM_JS = 'src/lib/codemirror/lib/codemirror.js'
+
+IME_EDIT_JS = r"""  // IME selection edit: apply IME deletions and multi-line replacements to the
+  // document instead of reading the natively edited DOM.
+  CodeMirror.defineInitHook(function (cm) {
+    if (cm.options.inputStyle !== "contenteditable") { return }
+    var input = cm.display.input, div = input.div, composition = null;
+
+    function captureSelection() {
+      if (cm.isReadOnly()) { return null }
+      input.pollSelection();
+      var ranges = cm.listSelections();
+      if (ranges.length !== 1 || ranges[0].empty()) { return null }
+      var from = ranges[0].from(), to = ranges[0].to();
+      return {from: from, to: to, text: cm.getRange(from, to), multi: from.line !== to.line}
+    }
+
+    function applyEdit(sel, text, origin) {
+      if (cm.getRange(sel.from, sel.to) !== sel.text) { return false }
+      clearTimeout(input.readDOMTimeout);
+      input.readDOMTimeout = null;
+      input.composing = null;
+      cm.operation(function () {
+        cm.replaceRange(text, sel.from, sel.to, origin);
+        cm.refresh();
+      });
+      return true
+    }
+
+    div.addEventListener("beforeinput", function (e) {
+      if (e.isComposing || !e.cancelable) { return }
+      var type = e.inputType || "";
+      var isDelete = /^delete(?!ByDrag)/.test(type);
+      if (!isDelete && type !== "insertText") { return }
+      if (!isDelete && typeof e.data !== "string") { return }
+      var sel = captureSelection();
+      if (!sel || (!isDelete && !sel.multi)) { return }
+      var origin = type === "deleteByCut" ? "cut" : isDelete ? "+delete" : "+input";
+      if (applyEdit(sel, isDelete ? "" : e.data, origin)) { e.preventDefault(); }
+    });
+
+    div.addEventListener("compositionstart", function () {
+      composition = captureSelection();
+    }, true);
+
+    div.addEventListener("compositionend", function (e) {
+      var sel = composition;
+      composition = null;
+      if (!sel) { return }
+      var text = e.data || "";
+      if (text !== "" && !sel.multi) { return }
+      applyEdit(sel, text, text === "" ? "+delete" : "+input");
+    });
+  });
+
+"""
+
+apply(
+    'cm5 ime selection edit',
+    CM_JS,
+    'IME selection edit',
+    [(
+        re.compile(r'\n  CodeMirror\.version = '),
+        lambda m: '\n' + IME_EDIT_JS + '  CodeMirror.version = ',
+    )],
+)
+
 node = shutil.which('node')
 if node:
     with tempfile.TemporaryDirectory() as tmp:

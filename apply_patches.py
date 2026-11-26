@@ -378,7 +378,19 @@ const initDefineSearch = function() {
         e.stopPropagation();
     }, { passive: true });
 
-    searchInput.addEventListener('input', () => {
+    // `details instanceof Object` is false in Firefox for objects received
+    // through messaging in this frame, so test with `typeof` instead.
+    const loadContent = async ( ) => {
+        try {
+            const details = await vAPI.messaging.send('dashboard', { what: 'readUserFilters' });
+            if ( typeof details === 'object' && details !== null && !details.error ) {
+                userFiltersContent = details.content || '';
+            }
+        } catch {
+        }
+    };
+
+    const render = ( ) => {
         const query = searchInput.value.trim().toLowerCase();
         resultsList.textContent = '';
         if ( query.length === 0 ) {
@@ -407,18 +419,26 @@ const initDefineSearch = function() {
             count += 1;
         }
         resultsList.classList.toggle('hide', count === 0);
-    });
+    };
+
+    searchInput.addEventListener('input', render);
+    searchInput.addEventListener('focus', ( ) => { loadContent().then(render); });
+    loadContent().then(render);
 };
 
 const addDomainToDefine = async function(name, button) {
     if ( button.disabled ) { return; }
+    if ( /^[a-z-]+-extension:$/.test(docURL.protocol) ) {
+        button.textContent = 'Pick first';
+        return;
+    }
     button.disabled = true;
     let hn = hostnameFromURI(docURL.href);
     if ( hn.startsWith('xn--') ) {
         hn = punycode.toUnicode(hn);
     }
     const details = await vAPI.messaging.send('dashboard', { what: 'readUserFilters' });
-    if ( details instanceof Object === false || details.error ) {
+    if ( typeof details !== 'object' || details === null || details.error ) {
         button.disabled = false;
         return;
     }
@@ -469,14 +489,7 @@ EPICKER_START = re.compile(
 
 def epicker_start(m):
     i = m.group(1)[1:]
-    return (
-        m.group(0)
-        + f"\n{i}vAPI.messaging.send('dashboard', {{ what: 'readUserFilters' }}).then(details => {{"
-        + f"\n{i}    if ( details instanceof Object === false || details.error ) {{ return; }}"
-        + f"\n{i}    userFiltersContent = details.content || '';"
-        + f"\n{i}    initDefineSearch();"
-        + f"\n{i}}}).catch(( ) => {{ }});"
-    )
+    return m.group(0) + f"\n{i}initDefineSearch();"
 
 
 apply(
