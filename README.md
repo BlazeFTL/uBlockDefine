@@ -32,8 +32,12 @@ Element Picker - Add Current Domain To Define Lines Screenshot
 - Macros usable in cosmetic filters, network filters and filter options
 - Red directive highlighting in the filter editor
 - Auto-rename of macro usages when a `!#define` name is edited
+- `!#Collapse` macro: fold any block of lines, with an automatic label
+- Folded `!#if` blocks show their hosts after `!#endif`
+- Fold state is remembered across sessions; searching unfolds everything
 - Define search panel in the element picker, with one-tap **Add Current**
-- Mobile (Gboard) fixes for select-all, copy and cut in the filter editor
+- Mobile (Gboard) fixes for select-all, copy, cut and delete in the filter editor
+- Fork name shown in the About page and the add-on manager
 - Auto-updating Firefox releases
 - Daily upstream sync
 
@@ -105,6 +109,40 @@ Duplicates are removed. A macro that references itself, directly or through anot
 
 When you edit the name on a `!#define` line, all usages of that macro in the same list are renamed automatically. Undo and redo do not trigger a rename.
 
+### Collapse macro
+
+`!#Collapse`, `!#Col` or `!#Collapsed` (case-insensitive), optionally followed by a label, makes the lines right below it foldable. The block ends at the next empty line. uBO treats the macro line as a comment, and it is drawn red and bold like other directives.
+
+```adblock
+!#Collapse
+! https://example.com/some/page
+example.com##.ad-banner
+example.com##+js(set, document.hidden, false)
+
+!#Collapse My label
+other.net##.popup
+```
+
+A folded block shows:
+
+1. The label you typed, if any.
+2. Otherwise the host of the first `! https://...` comment in the block.
+3. Otherwise the host of the first filter in the block.
+4. Otherwise the line count.
+
+### Folded `!#if` blocks
+
+A folded `!#if` block shows the hosts found in its `! https://...` comments after `!#endif`, in green, for example `!#endif(arolinks.com+vplink.com)`. Lines starting with `!#` and `! <<<<<<<< ` are skipped. The label is CSS generated content, never part of the editor text.
+
+### Fold memory
+
+In **My filters**, folded `!#if` and `!#Collapse` blocks are remembered across sessions (stored as `myFiltersFolds`).
+
+- `!#Collapse` blocks never seen before start folded. `!#if` blocks start unfolded.
+- A block is identified by its first two lines plus its rank among identical blocks. Editing those lines resets its state.
+- While a search is active, everything is unfolded. The remembered state returns when the search ends.
+- Reloading the content, reverting or toggling trust restores the folds afterwards.
+
 ### Mobile input fixes
 
 On Android, Gboard reads select-all, copy and cut from the editor DOM text. Stock CodeMirror 5 put line numbers and extra blank lines into that text. This fork:
@@ -112,8 +150,13 @@ On Android, Gboard reads select-all, copy and cut from the editor DOM text. Stoc
 - Renders line numbers and lint messages as CSS generated content instead of text.
 - Uses inline elements for gutter helpers.
 - Renders the whole document for lists up to 5000 lines, so select-all covers everything and not only the visible part.
+- Applies IME deletions and multi-line replacements to the document directly. Stock CodeMirror 5 could not map Gecko's native DOM edit back to the document, so cut or delete of whole selected lines made them vanish and then reappear.
 
 Copied text is now exactly one line per filter line.
+
+### Fork name
+
+The About page shows `uBlockOrigin Define <version>`. The add-on manager shows the name `uBlockOrigin Define`.
 
 ---
 
@@ -133,18 +176,27 @@ Button states: **Added** if the domain is already in the macro, **Not found** if
 
 ### Artifact
 
-`build.yml` runs on every push and pull request. It checks out upstream `gorhill/uBlock`, applies `apply_patches.py` and `patch.py`, then runs `make firefox`. Download the result from [Actions](../../actions) → latest run → **uBlockOrigin Define V<version> Fork Unsigned**.
+`build.yml` runs on every push and pull request. It checks out upstream `gorhill/uBlock`, applies `apply_patches.py`, `patch.py` and `patch2.py`, sets the add-on ID and `update_url` with `set_update_url.py`, then runs `make firefox`. Download the result from [Actions](../../actions) → latest run → **uBlockOrigin Define V<version> Fork Unsigned**.
 
 ### Release
 
 Run the **Release XPI** workflow manually. It:
 
-- Builds `uBlockDefine.firefox.xpi` from this repo.
-- Creates release `v<version>`. If that release already exists, it is skipped.
-- Sets `update_url` in the manifest. Set the repository variable `ADDON_ID` to override the add-on ID.
-- Publishes `updates.json` to the `updates` release, so installed copies update themselves (Firefox 115+).
+- Applies all three patch scripts and `set_update_url.py`.
+- Builds `uBlockDefine.firefox.xpi`.
+- Creates release `v<version>`. If that release already exists, the run is skipped. Enable the `force` input to delete and rebuild it.
+- Writes `updates.json` and uploads it to the `updates` pre-release, which is created if missing. Installed copies read it to update themselves (Firefox 115+).
 
-For a signed build, head to the Release section.
+Releases are unsigned.
+
+### Add-on ID and updates
+
+`set_update_url.py` sets the manifest `id` and `update_url`:
+
+- ID: the `ADDON_ID` repository variable, or `ublockdefine@define.fork` if unset. It never uses the upstream ID.
+- `update_url`: `https://github.com/<repo>/releases/download/updates/updates.json`
+
+Updates do not use a branch. They depend on the `updates` release: do not delete it. The key in `updates.json` must match the installed add-on's ID, so changing `ADDON_ID` stops existing installs from updating.
 
 ### Upstream sync
 
@@ -154,14 +206,17 @@ For a signed build, head to the Release section.
 
 ## How Patching Works
 
-This fork does not maintain hand-edited copies of uBlock Origin's files. Two scripts apply string-based patches at build time:
+This fork does not maintain hand-edited copies of uBlock Origin's files. Three scripts apply string-based patches at build time, in this order:
 
 | Script | Patches |
 |---|---|
 | `apply_patches.py` | `!#define` parser and expansion, directive color, auto-rename, element picker search |
-| `patch.py` | CodeMirror mobile input fixes |
+| `patch.py` | CodeMirror mobile input fixes (line numbers, gutter helpers, full render) |
+| `patch2.py` | Fork name, `!#Collapse` macro, `!#if` end labels, fold memory, search unfold, Gboard cut/delete fix |
 
-Both scripts are idempotent: a patch already present is skipped. If an upstream change breaks a patch anchor (it must match exactly once), the build fails with a descriptive error. Touched JS files are syntax-checked with `node --check`.
+`set_update_url.py` then sets the add-on ID and `update_url`.
+
+All three patch scripts are idempotent: a patch already present is skipped. If an upstream change breaks a patch anchor (it must match exactly once), the build fails with a descriptive error. Touched JS files are syntax-checked with `node --check`.
 
 ---
 
